@@ -2,7 +2,7 @@
 [INFO] 
 
 NAME = ArchViz Tools
-VERSION = 1.1.1
+VERSION = 1.1.2
 AUTHOR = MastaMan
 DEV = Visco CG
 HELP = 
@@ -53,18 +53,14 @@ ICON=#("PhysX_Main",27)
 - BugFix: Default numbers for Small and Large AO=
 + Added: Confirm message on delete elements=
 
+[1.1.2]
+- BugFix: Not clear all effect id in materials=
+
 [ABOUT]
 
 This script helps to quickly add Render Elements for masks=
 
 [TEST]
-
-Check: new features for LightSelect, MatID, ObjectID=
-@=
-- BugFix: Propogare to delete MatID Elements=
-- BugFix: MatID id dublication=
-- BugFix: Default numbers for Small and Large AO=
-+ Added: Confirm message on delete elements=
 
 [SCRIPT]
 */	
@@ -264,19 +260,8 @@ rollout  _rRenderElement "Render Elements"
 	
 	fn resetMatId = 
 	(
-		for i in sceneMaterials where i != undefined do 
-		(							
-			if(classOf i == Multimaterial) do
-			(
-				for ii in i do 
-				(	
-					try(ii.override_effect_id = off)catch()
-					try(ii.effect_id = 0)catch()
-				)
-				
-				continue
-			)
-			
+		for i in getClassInstances VrayMtl do
+		(
 			try(i.override_effect_id = off)catch()
 			try(i.effect_id = 0)catch()
 		)
@@ -452,9 +437,7 @@ rollout  _rRenderElement "Render Elements"
 		dubIds = #()
 		dubMaterials = #()
 		unusedMaterials = #()
-		
-		print (sMaterials.count)
-		
+				
 		for i in sMaterials do
 		(
 			if(i.effect_id != 0 and (appendIfUnique dubIds i.effect_id) == false) do i.effect_id = 0
