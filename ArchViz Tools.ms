@@ -2,7 +2,7 @@
 [INFO] 
 
 NAME = ArchViz Tools
-VERSION = 1.1.2
+VERSION = 1.1.3
 AUTHOR = MastaMan
 DEV = Visco CG
 HELP = 
@@ -56,6 +56,11 @@ ICON=#("PhysX_Main",27)
 [1.1.2]
 - BugFix: Not clear all effect id in materials=
 
+[1.1.3]
+
++ Added: Support - VRayBlendMtl, VRayMtlWrapper, VrayOverrideMtl, VRay2SidedMtl=
++ Added: Support for XRef Scene=
+
 [ABOUT]
 
 This script helps to quickly add Render Elements for masks=
@@ -105,6 +110,7 @@ rollout  _rRenderElement "Render Elements"
 		button btnDelMtlIds "X" width: 25  offset: [4, 0] align: #right tooltip: "Delete all MatID Render Elements" 
 		button btnCreateObjIds "ObjectID" width: 120 across: 2 offset: [48, 0] align: #right	
 		button btnDelObjIds "X" width: 25  offset: [4, 0] align: #right tooltip: "Delete all ObjectID Render Elements"
+		checkbox cbxTreatXRef "Treat XRef Scene" checked: true
 	)
 
 	group "VrayWireColor"
@@ -146,9 +152,32 @@ rollout  _rRenderElement "Render Elements"
 	
 	fn appendMaterial m = 
 	(	
-		if(findItem sMaterials m == 0 and classOf m == VRayMtl) do append sMaterials m 
-		if(classOf m == VRayBlendMtl and  classOf m.baseMtl == VRayMtl and findItem sMaterials m.baseMtl == 0) do append sMaterials m.baseMtl
-		if(classOf m == Blend and  classOf m.map1 == VRayMtl and findItem sMaterials m.map1 == 0) do append sMaterials m.map1
+		for i in m where findItem sMaterials i == 0 do append sMaterials i		
+	)
+	
+	fn getXRefMaterials =
+	(
+		mats = #()
+		xr = for i in 1 to xrefs.getXRefFileCount() collect xrefs.getXRefFile i
+		for i in xr do 
+		(
+			c = i.tree.children
+			m = for i in c where i != undefined and i.material != undefined collect i.material
+			m = makeUniqueArray m
+					
+			for i in m do for ii in getClassInstances VrayMtl target: i do append mats ii	
+		)
+		
+		return mats
+	)
+	
+	fn getXRefObjects =
+	(
+		obj = #()
+		xr = for i in 1 to xrefs.getXRefFileCount() collect xrefs.getXRefFile i
+		for i in xr do join obj i.tree.children
+				
+		return for i in obj where superClassOf i == GeometryClass collect i
 	)
 	
 	fn existElement el =
@@ -407,7 +436,15 @@ rollout  _rRenderElement "Render Elements"
 		
 		resetObjectID()
 		
-		createObjIds geometry	
+		o = geometry as array
+		
+		if(cbxTreatXRef.checked) do
+		(
+			t = getXRefObjects()
+			join o t
+		)
+		
+		createObjIds o	
 	)
 	
 	on btnCreateMtlIds pressed do
@@ -419,19 +456,21 @@ rollout  _rRenderElement "Render Elements"
 		
 		renderSceneDialog.open()
 		
+		-- Get Materials
 		g = geometry
 		for i in g where i.material != undefined do 
 		(	
 			m = i.material
 			
-			if(classOf m == Multimaterial) do
-			(
-				for ii in m do appendMaterial ii
-				
-				continue
-			)
+			t = for ii in getClassInstances VRayMtl target: m collect ii
 			
-			appendMaterial m	
+			appendMaterial t	
+		)
+		
+		if(cbxTreatXRef.checked) do
+		(
+			xRefMats = getXRefMaterials()
+			appendMaterial xRefMats
 		)
 	
 		dubIds = #()
