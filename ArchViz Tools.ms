@@ -61,6 +61,12 @@ ICON=#("PhysX_Main",27)
 + Added: Support - VRayBlendMtl, VRayMtlWrapper, VrayOverrideMtl, VRay2SidedMtl=
 + Added: Support for XRef Scene=
 
+[1.1.4]
+
++ Added: New Materials rollout=
++ Added: Button disable interpolations for VRayMtl=
++ Added: Button for change  multiple scattering for VRayFastSSS2=
+
 [ABOUT]
 
 This script helps to quickly add Render Elements for masks=
@@ -122,8 +128,8 @@ rollout  _rRenderElement "Render Elements"
 	
 	group "VrayLightSelect"
 	(		
-		button btnLightselect "Light Select" width: 120 across: 2 offset: [-2, 0]
-		button btnDelLightSelect "X" width: 25  offset: [27, 0] tooltip: "Delete all LightSelect Render Elements"
+		button btnLightselect "Light Select" width: 120 across: 2 offset: [48, 0] align: #right	
+		button btnDelLightSelect "X" width: 25  offset: [4, 0] align: #right tooltip: "Delete all LightSelect Render Elements"
 	)
 	
 	group "Ambient Occlusion"
@@ -595,6 +601,56 @@ rollout  _rRenderElement "Render Elements"
 	)
 )
 
+rollout  _rRenderMaterial "Materials" 
+(		
+	group "VRayFastSSS2"
+	(
+		label lblMultipleScattering "Multiple Scattering:" align: #left
+		dropdownList ddlMultipleScattering "" items: #("Prepass-based illumination map", "Object-based illumination map", "Raytraced") selection: 3
+		button btnChangeMultipleScattering "Apply for all"
+	)
+	
+	group "VRayMtl"
+	(
+		button btnDisableInterp "Disable Interpolation"
+	)
+	
+	on btnDisableInterp pressed do
+	(
+		m = "Do you really want to Disable Interpolation for all VrayMtl materials?\n\nThis operation can not be undone!"
+		q = queryBox m title: "Confirm?"
+		if(not q) do return false
+		iCnt = 0
+		for i in getClassInstances VrayMtl do
+		(
+			if(i.reflection_useInterpolation == on or i.refraction_useInterpolation == on) do (
+				i.reflection_useInterpolation = off							
+				i.refraction_useInterpolation = off
+				iCnt += 1
+			)			
+		)	
+		
+		m2 =  "Succes! Changed " + iCnt as string + " materials!"
+		if(iCnt == 0) do m2 = "Done! Not found materials with interpolation!"
+		messageBox m2 title: "Success!" beep: false
+	)
+	
+	on btnChangeMultipleScattering pressed do
+	(
+		m = "Do you really want to change Multiple Scattering for all VrayFastSSS2 materials?\n\nThis operation can not be undone!"
+		q = queryBox m title: "Confirm?"
+		if(not q) do return false
+		iCnt = 0
+		for i in getClassInstances VrayFastSSS2 do
+		(
+			i.multiple_scattering = (ddlMultipleScattering.selection - 1)
+			iCnt += 1
+		)
+		
+		m2 = "Succes! Changed " + iCnt as string + " materials!"		
+		messageBox m2 title: "Success!" beep: false
+	)
+)
 
 rollout _rAbout "About" 
 (
@@ -616,9 +672,10 @@ rollout _rAbout "About"
 )
 
 try(closeRolloutFloater rArchVizTools) catch()
-global rArchVizTools = newRolloutFloater "ArchViz" 180 450
+global rArchVizTools = newRolloutFloater "ArchViz" 200 500
 
-addRollout _rRenderElement rArchVizTools rolledUp:false 
+addRollout _rRenderElement rArchVizTools rolledUp: false 
+addRollout _rRenderMaterial rArchVizTools rolledUp: true 
 addRollout _rAbout rArchVizTools rolledUp:true 
 
 
