@@ -2,7 +2,7 @@
 [INFO] 
 
 NAME = ArchViz Tools
-VERSION = 1.1.3
+VERSION = 1.1.5
 AUTHOR = MastaMan
 DEV = Visco CG
 HELP = 
@@ -67,6 +67,10 @@ ICON=#("PhysX_Main",27)
 + Added: Button disable interpolations for VRayMtl=
 + Added: Button for change  multiple scattering for VRayFastSSS2=
 
+[1.1.5]
+
+* Changed: LightSelect Render Elements now named as lights=
+
 [ABOUT]
 
 This script helps to quickly add Render Elements for masks=
@@ -114,6 +118,11 @@ rollout  _rRenderElement "Render Elements"
 	(
 		button btnCreateMtlIds "MatID" width: 120 across: 2 offset: [48, 0] align: #right		
 		button btnDelMtlIds "X" width: 25  offset: [4, 0] align: #right tooltip: "Delete all MatID Render Elements" 
+		checkbox cbxOptimizeMatIds "Optimize Mat IDs" checked: false
+		
+		button btnCreateBWMtlIds "Black/White MatID" width: 120 across: 2 offset: [48, 0] align: #right		
+		button btnDelBWMtlIds "X" width: 25  offset: [4, 0] align: #right tooltip: "Delete all MatID Render Elements" 
+		
 		button btnCreateObjIds "ObjectID" width: 120 across: 2 offset: [48, 0] align: #right	
 		button btnDelObjIds "X" width: 25  offset: [4, 0] align: #right tooltip: "Delete all ObjectID Render Elements"
 		checkbox cbxTreatXRef "Treat XRef Scene" checked: true
@@ -201,12 +210,27 @@ rollout  _rRenderElement "Render Elements"
 		for i in 0 to n - 1 where (re.GetRenderElement i) != undefined and (MatchPattern (re.GetRenderElement i).elementName pattern: el) do re.RemoveRenderElement (re.GetRenderElement i)	
 	)
 	
+	fn removeElemetClass re n el = 
+	(	
+		for i in 0 to n - 1 where (re.GetRenderElement i) != undefined and (ClassOf (re.GetRenderElement i) == el) do re.RemoveRenderElement (re.GetRenderElement i)	
+	)
+	
 	fn deleteElements el =
 	(			
 		re = maxOps.GetCurRenderElementMgr()
 		n = re.NumRenderElements()
 		
 		for i in 1 to n do removeElemet re n el				
+			
+		renderSceneDialog.open()
+	)
+	
+	fn deleteElementsByClass el =
+	(			
+		re = maxOps.GetCurRenderElementMgr()
+		n = re.NumRenderElements()
+		
+		for i in 1 to n do removeElemetClass re n el				
 			
 		renderSceneDialog.open()
 	)
@@ -331,7 +355,7 @@ rollout  _rRenderElement "Render Elements"
 		for i in 1 to objById.count by 3 do
 		(
 			mme = MultiMatteElement()
-			n =  "ObjectID_MultiMatteElement " + i as string + " - " + (i + 2) as string
+			local n =  "ObjectID_MultiMatteElement " + i as string + " - " + (i + 2) as string
 			mme.MatID = false
 			mme.R_gbufID = i
 			mme.G_gbufID = i + 1
@@ -373,6 +397,15 @@ rollout  _rRenderElement "Render Elements"
 		deleteElements "Sel_MtlID_*"
 		resetMatId()
 	)
+	
+	on btnDelBWMtlIds pressed do 
+	(	
+		if(deleteMessage h:"BlackWhite_MtlID") do return false
+		
+		deleteElements "BlackWhite_MtlID_*"
+		resetMatId()
+	)
+	
 	on btnDelObjIds pressed do
 	(		
 		if(deleteMessage h:"ObjectID") do return false
@@ -392,11 +425,14 @@ rollout  _rRenderElement "Render Elements"
 	(	
 		if(deleteMessage h:"LightSelect") do return false
 		
-		deleteElements "LightSelect_*"
+		--deleteElements "LightSelect_*"
+		deleteElementsByClass (VrayLightSelect)
 	)
 	
 	on btnLightselect pressed do
 	(
+		deleteElementsByClass (VrayLightSelect)
+		
 		sceneLights = for i in lights where isKindOf i light collect i
 
 		instanceLights = getInstances sceneLights
@@ -405,12 +441,17 @@ rollout  _rRenderElement "Render Elements"
 		(
 			ll = instanceLights[i]
 						
-			n = existInLightElement ll
+			local n = existInLightElement ll
 					
 			if(n == undefined) then
 			(
 				vls = VRayLightSelect()
-				n = getUniqueName "LightSelect_*"
+				
+				--@@@ Changed to first light name
+				--n = getUniqueName "LightSelect_*"
+				--n = getUniqueName (ll[ll.count].name + "_*")
+				n = ll[ll.count].name
+				
 				vls.lights = ll
 				
 				addElement vls n
@@ -426,7 +467,7 @@ rollout  _rRenderElement "Render Elements"
 	(
 		randomWireColor()
 		
-		n = "Object Color Mask"		
+		local n = "Object Color Mask"		
 		if(existElement n == true) do return false
 				
 		vwc = VrayWireColor()
@@ -453,10 +494,9 @@ rollout  _rRenderElement "Render Elements"
 		createObjIds o	
 	)
 	
-	on btnCreateMtlIds pressed do
+	on btnCreateBWMtlIds pressed do
 	(	
-		deleteElements "MtlID_*"
-		deleteElements "Sel_MtlID_*"
+		deleteElements "BlackWhite_MtlID_*"
 		
 		sMaterials = #()
 		
@@ -498,20 +538,135 @@ rollout  _rRenderElement "Render Elements"
 			unusedMaterials[i].effect_id = startFrom + i
 		)
 		
-		for i in 1 to sMaterials.count by 3 do
+		for i in 1 to sMaterials.count do
 		(
 			id1 = sMaterials[i].effect_id
-			id2 = if(sMaterials[i + 1] != undefined) then sMaterials[i + 1].effect_id else 0
-			id3 = if(sMaterials[i + 2] != undefined) then sMaterials[i + 2].effect_id else 0
-			
+						
 			mme = MultiMatteElement()
-			n = "MtlID_MultiMatteElement " + id1 as string + ", " + id2 as string + ", " + id3 as string
+			local n = "BlackWhite_MtlID_ " + sMaterials[i].name + "_*"
+			n = getUniqueName n
+			
 			mme.MatID = true
 			mme.R_gbufID = id1
-			mme.G_gbufID = id2
-			mme.B_gbufID = id3
+			mme.G_gbufID = id1
+			mme.B_gbufID = id1
 				
 			addElement mme n
+		)
+	)
+	
+	on btnCreateMtlIds pressed do
+	(	
+		-- Delete if optimize
+		if(cbxOptimizeMatIds.checked) do (
+			deleteElements "MtlID_*"
+			deleteElements "Sel_MtlID_*"
+		)
+		
+		sMaterials = #()
+		
+		renderSceneDialog.open()
+		
+		-- Get Materials
+		g = geometry
+		for i in g where i.material != undefined do 
+		(	
+			m = i.material
+			
+			t = for ii in getClassInstances VRayMtl target: m collect ii
+			
+			appendMaterial t	
+		)
+		
+		if(cbxTreatXRef.checked) do
+		(
+			xRefMats = getXRefMaterials()
+			appendMaterial xRefMats
+		)
+	
+		dubIds = #()
+		dubMaterials = #()
+		unusedMaterials = #()
+				
+		for i in sMaterials do
+		(
+			if(i.effect_id != 0 and (appendIfUnique dubIds i.effect_id) == false) do i.effect_id = 0			
+			if(i.effect_id == 0) do append unusedMaterials i
+		)
+				
+		-- If optimized start counter get from material
+		startFrom = amax (for i in sMaterials collect i.effect_id)
+		
+		-- Not optimized start counter get from render elements
+		if(not cbxOptimizeMatIds.checked) do (
+			els = findElement  "MtlID_MultiMatteElement *"
+			startFrom = 0
+			if(els.count > 0) do (
+				elementsIds = #()
+				
+				for gg in els do (
+					n = gg.elementName
+					s = substituteString n "MtlID_MultiMatteElement " ""
+					ss = filterString s ", "
+					join elementsIds (for ii in ss collect ii as integer)
+				)
+				
+				elementsIds = makeUniqueArray elementsIds							
+				startFromNotOpt = amax elementsIds
+				
+				startFrom =startFromNotOpt
+				
+				print startFrom
+			)
+		)
+					
+		for i in 1 to unusedMaterials.count do
+		(
+			unusedMaterials[i].override_effect_id = on
+			unusedMaterials[i].effect_id = startFrom + i
+		)
+		
+		-- Optimized add elements
+		if(cbxOptimizeMatIds.checked) do (
+			for i in 1 to sMaterials.count by 3 do
+			(
+				id1 = sMaterials[i].effect_id
+				id2 = if(sMaterials[i + 1] != undefined) then sMaterials[i + 1].effect_id else 0
+				id3 = if(sMaterials[i + 2] != undefined) then sMaterials[i + 2].effect_id else 0
+				
+				mme = MultiMatteElement()
+				n = "MtlID_MultiMatteElement " + id1 as string + ", " + id2 as string + ", " + id3 as string
+				mme.MatID = true
+				mme.R_gbufID = id1
+				mme.G_gbufID = id2
+				mme.B_gbufID = id3
+					
+				addElement mme n
+			)
+		)
+		
+		if(not cbxOptimizeMatIds.checked) do (
+			for i in 1 to sMaterials.count by 3 do
+			(
+				id1 = sMaterials[i].effect_id
+				id2 = id1 + 1
+				id3 = id1 + 2
+				
+				n = "MtlID_MultiMatteElement " + id1 as string + ", " + id2 as string + ", " + id3 as string
+				
+				fel = findElement n
+				if(fel.count > 0) do continue
+				
+				
+				mme = MultiMatteElement()
+				
+				mme.MatID = true
+				mme.R_gbufID = id1
+				mme.G_gbufID = id2
+				mme.B_gbufID = id3
+					
+				addElement mme n
+			)
 		)
 	)
 	
@@ -523,7 +678,7 @@ rollout  _rRenderElement "Render Elements"
 	
 	on btnSmallAO pressed do
 	(
-		n = "VRayExtraTex_Small AO"
+		local n = "VRayExtraTex_Small AO"
 		deleteElements n
 		
 		vet = VRayExtraTex()		
@@ -544,7 +699,7 @@ rollout  _rRenderElement "Render Elements"
 		
 	on btnLargeAO pressed do
 	(
-		n = "VRayExtraTex_Large AO"
+		local n = "VRayExtraTex_Large AO"
 		deleteElements n
 				
 		vet = VRayExtraTex()		
@@ -672,7 +827,7 @@ rollout _rAbout "About"
 )
 
 try(closeRolloutFloater rArchVizTools) catch()
-global rArchVizTools = newRolloutFloater "ArchViz" 200 500
+global rArchVizTools = newRolloutFloater "ArchViz" 200 550
 
 addRollout _rRenderElement rArchVizTools rolledUp: false 
 addRollout _rRenderMaterial rArchVizTools rolledUp: true 
